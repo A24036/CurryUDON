@@ -1,0 +1,79 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Pawn.h"
+#include "HAND.generated.h"
+
+class UPostProcessComponent;
+class UMaterialInstanceDynamic;
+
+UCLASS()
+class CARRYUDON_API AHAND : public APawn
+{
+    GENERATED_BODY()
+
+public:
+    AHAND();
+
+protected:
+    virtual void BeginPlay() override;
+
+public:
+    virtual void Tick(float DeltaTime) override;
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    class USceneComponent* SceneRoot;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    class UStaticMeshComponent* HandMesh;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    class UPhysicsHandleComponent* PhysicsHandle;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UPostProcessComponent* PostProcessComponent;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings")
+    float HandFixedDistance = 500.0f;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings")
+    float CubeTargetDistance = 500.0f;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings")
+    float InterpSpeed = 25.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Score")
+    int32 CurrentScore = 0;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
+    UMaterialInterface* CurryScreenMaterial;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
+    float SplashThreshold = 15000.0f;
+
+    UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
+    float FadeSpeed = 0.5f;
+
+    // ★★★ 今回追加：タイマー用の変数 ★★★
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
+    float GameTimeLimit = 30.0f; // 制限時間（30秒）
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
+    float CurrentTimeRemaining; // 現在の残り時間
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
+    bool bIsGameOver; // タイムアップしたかどうかの判定
+
+    void Grab();
+    void Release();
+    void MoveUp(float Value);
+
+private:
+    bool bIsGrabbing = false;
+    float LastCubeDistance = 500.0f;
+    float CurrentCurryAlpha = 0.0f;
+
+    UPROPERTY()
+    UMaterialInstanceDynamic* DynamicCurryMaterial;
+};
