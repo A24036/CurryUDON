@@ -9,7 +9,6 @@
 #include "Components/PostProcessComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h" 
-// ★★★ 今回追加：マップ移動用のヘッダー ★★★
 #include "Kismet/GameplayStatics.h"
 
 AHAND::AHAND()
@@ -80,8 +79,6 @@ void AHAND::Tick(float DeltaTime)
             CurrentTimeRemaining = 0.0f;
             bIsGameOver = true;
             Release();
-
-            // ★★★ 今回追加：0秒になったら「NewMap」へ強制移動する ★★★
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
     }
@@ -111,6 +108,15 @@ void AHAND::Tick(float DeltaTime)
                 if (Speed > SplashThreshold)
                 {
                     CurrentCurryAlpha = 1.0f;
+
+                    // ★★★ ここを変更：毎フレーム「200」ずつスコアを減らす ★★★
+                    CurrentScore -= 200;
+
+                    // スコアがマイナスにならないように0で止める
+                    if (CurrentScore < 0)
+                    {
+                        CurrentScore = 0;
+                    }
                 }
                 LastCubeDistance = CubeTargetDistance;
 
