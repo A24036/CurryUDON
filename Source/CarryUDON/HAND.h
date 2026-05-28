@@ -57,13 +57,13 @@ public:
 
     // タイマー用の変数
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
-    float GameTimeLimit = 30.0f; // 制限時間（30秒）
+    float GameTimeLimit = 30.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
-    float CurrentTimeRemaining; // 現在の残り時間
+    float CurrentTimeRemaining;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
-    bool bIsGameOver; // タイムアップしたかどうかの判定
+    bool bIsGameOver;
 
     void Grab();
     void Release();

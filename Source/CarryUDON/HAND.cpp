@@ -20,11 +20,11 @@ AHAND::AHAND()
     HandMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandMesh"));
     HandMesh->SetupAttachment(SceneRoot);
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Cube"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/seisaku/Model/hand1.hand1"));
     if (MeshAsset.Succeeded())
     {
         HandMesh->SetStaticMesh(MeshAsset.Object);
-        HandMesh->SetRelativeScale3D(FVector(0.1f, 0.1f, 2.0f));
+        HandMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
     }
 
     HandMesh->SetSimulatePhysics(false);

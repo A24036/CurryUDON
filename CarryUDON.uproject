@@ -16,19 +16,13 @@
 	"Plugins": [
 		{
 			"Name": "OpenXR",
-			"Enabled": true,
-			"SupportedTargetPlatforms": [
-				"Win64",
-				"Linux",
-				"Android"
-			]
+			"Enabled": true
 		},
 		{
 			"Name": "VirtualScouting",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
-				"Win64",
-				"Linux"
+				"Win64"
 			]
 		},
 		{
@@ -83,7 +77,8 @@
 			"Name": "nDisplay",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
-				"Win64"
+				"Win64",
+				"Linux"
 			]
 		},
 		{
@@ -119,14 +114,22 @@
 			"Name": "AppleARKit",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
-				"IOS"
+				"IOS",
+				"Win64",
+				"Mac",
+				"Linux",
+				"Android"
 			]
 		},
 		{
 			"Name": "AppleARKitFaceSupport",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
-				"IOS"
+				"IOS",
+				"Win64",
+				"Mac",
+				"Linux",
+				"Android"
 			]
 		},
 		{
