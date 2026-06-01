@@ -76,4 +76,12 @@ private:
 
     UPROPERTY()
     UMaterialInstanceDynamic* DynamicCurryMaterial;
+
+    // ====== ¥¡‰ñ’Ç‰Á‚µ‚½u–Ë‚ğL‚Î‚·v‚½‚ß‚Ì•Ï” ¥ ======
+    UPROPERTY()
+    class UStaticMeshComponent* StretchingNoodleComp = nullptr;
+
+    FVector NoodleSpawnBaseLocation;
+    FVector NoodleOriginalScale;
+    // =======================================================
 };

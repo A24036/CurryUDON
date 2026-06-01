@@ -20,11 +20,11 @@ AHAND::AHAND()
     HandMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandMesh"));
     HandMesh->SetupAttachment(SceneRoot);
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/seisaku/Model/hand1.hand1"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Cube"));
     if (MeshAsset.Succeeded())
     {
         HandMesh->SetStaticMesh(MeshAsset.Object);
-        HandMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+        HandMesh->SetRelativeScale3D(FVector(0.1f, 0.1f, 2.0f));
     }
 
     HandMesh->SetSimulatePhysics(false);
@@ -45,6 +45,21 @@ AHAND::AHAND()
 void AHAND::BeginPlay()
 {
     Super::BeginPlay();
+
+    UStaticMesh* NewHandMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Game/seisaku/Model/hand1.hand1")));
+    if (NewHandMesh && HandMesh)
+    {
+        HandMesh->SetStaticMesh(NewHandMesh);
+        HandMesh->SetRelativeScale3D(FVector(-1.0f, 1.0f, 1.0f));
+        HandMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+
+        // ★【修正】箸の先端を手前の箸（麺）に合わせるための位置ズレ（オフセット）★
+        // 画像 image_12.png に基づき、箸先を下(-55.0)に下げ、
+        // かつカメラ側(-25.0)に引き、左右の位置(20.0)も微調整しました。
+        // これで箸先と箸（麺）オブジェクトが重なるはずです！
+        HandMesh->SetRelativeLocation(FVector(20.0f, 55.0f, -55.0f));
+    }
+
     APlayerController* PC = Cast<APlayerController>(GetController());
     if (PC) { PC->bShowMouseCursor = true; }
 
@@ -98,31 +113,56 @@ void AHAND::Tick(float DeltaTime)
         FVector MouseWorldLoc, MouseWorldDir;
         if (PC->DeprojectMousePositionToWorld(MouseWorldLoc, MouseWorldDir))
         {
+            // 基本の手の位置
             FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance);
-            SetActorLocation(FMath::VInterpTo(GetActorLocation(), HandTargetLoc, DeltaTime, InterpSpeed));
+            FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
 
-            if (bIsGrabbing && PhysicsHandle->GrabbedComponent)
+            if (bIsGrabbing)
             {
                 float Speed = FMath::Abs(CubeTargetDistance - LastCubeDistance) / DeltaTime;
 
                 if (Speed > SplashThreshold)
                 {
                     CurrentCurryAlpha = 1.0f;
-
-                    // ★★★ ここを変更：毎フレーム「200」ずつスコアを減らす ★★★
                     CurrentScore -= 200;
-
-                    // スコアがマイナスにならないように0で止める
-                    if (CurrentScore < 0)
-                    {
-                        CurrentScore = 0;
-                    }
+                    if (CurrentScore < 0) CurrentScore = 0;
                 }
                 LastCubeDistance = CubeTargetDistance;
 
-                FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
-                PhysicsHandle->SetTargetLocation(CubeTargetLoc);
+                if (StretchingNoodleComp)
+                {
+                    // ==============================================================
+                    // ★【修正】麺の先端をマウスカーソル（箸先）にピッタリ追従させる
+                    // ==============================================================
+                    FVector VectorToTarget = CubeTargetLoc - NoodleSpawnBaseLocation;
+                    float Distance = VectorToTarget.Size();
+
+                    if (Distance > 1.0f)
+                    {
+                        // 麺の中間地点を計算して配置
+                        FVector MidPoint = NoodleSpawnBaseLocation + (VectorToTarget * 0.5f);
+                        StretchingNoodleComp->SetWorldLocation(MidPoint);
+
+                        // 麺の向きをカーソルへ向ける
+                        FRotator NewRot = FRotationMatrix::MakeFromZ(VectorToTarget).Rotator();
+                        StretchingNoodleComp->SetWorldRotation(NewRot);
+
+                        // 距離に合わせて麺を引き伸ばす
+                        float MeshHeight = StretchingNoodleComp->GetStaticMesh()->GetBoundingBox().GetSize().Z;
+                        if (MeshHeight <= 0.1f) MeshHeight = 100.0f;
+
+                        float StretchScaleZ = Distance / MeshHeight;
+                        StretchingNoodleComp->SetWorldScale3D(FVector(NoodleOriginalScale.X, NoodleOriginalScale.Y, StretchScaleZ));
+                    }
+                }
+                else if (PhysicsHandle->GrabbedComponent)
+                {
+                    PhysicsHandle->SetTargetLocation(CubeTargetLoc);
+                }
             }
+
+            // 手の移動処理（素直にマウスカーソルに追従します）
+            SetActorLocation(FMath::VInterpTo(GetActorLocation(), HandTargetLoc, DeltaTime, InterpSpeed));
         }
     }
 
@@ -158,7 +198,9 @@ void AHAND::Grab()
 
         if (HitActor && HitActor->ActorHasTag(FName("Spawner")))
         {
-            FVector SpawnLocation = HitActor->GetActorLocation() + FVector(0, 0, 150.0f);
+            // お椀の底からピッタリ生成する
+            FVector SpawnLocation = HitActor->GetActorLocation();
+
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
@@ -175,18 +217,20 @@ void AHAND::Grab()
                     NewComp->SetStaticMesh(ParentComp->GetStaticMesh());
                     int32 MatCount = ParentComp->GetNumMaterials();
                     for (int32 i = 0; i < MatCount; i++) { NewComp->SetMaterial(i, ParentComp->GetMaterial(i)); }
-                    NewComp->SetWorldScale3D(ParentComp->GetComponentScale());
 
-                    NewComp->SetSimulatePhysics(true);
-                    NewComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+                    NoodleOriginalScale = ParentComp->GetComponentScale();
+                    NewComp->SetWorldScale3D(NoodleOriginalScale);
+
+                    NewComp->SetSimulatePhysics(false);
+                    NewComp->SetCollisionProfileName(TEXT("NoCollision"));
 
                     bIsGrabbing = true;
+                    StretchingNoodleComp = NewComp;
+                    NoodleSpawnBaseLocation = SpawnLocation;
 
                     FVector CamLoc = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
-                    CubeTargetDistance = FVector::Dist(NewComp->GetComponentLocation(), CamLoc);
+                    CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
                     LastCubeDistance = CubeTargetDistance;
-
-                    PhysicsHandle->GrabComponentAtLocationWithRotation(NewComp, NAME_None, NewComp->GetComponentLocation(), NewComp->GetComponentRotation());
                 }
             }
             return;
@@ -200,6 +244,7 @@ void AHAND::Grab()
             LastCubeDistance = CubeTargetDistance;
 
             bIsGrabbing = true;
+            PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
         }
     }
@@ -208,7 +253,24 @@ void AHAND::Grab()
 void AHAND::Release()
 {
     bIsGrabbing = false;
-    if (PhysicsHandle->GrabbedComponent) { PhysicsHandle->ReleaseComponent(); }
+
+    // クリックを離したときに麺を消去する
+    if (StretchingNoodleComp)
+    {
+        AActor* NoodleActor = StretchingNoodleComp->GetOwner();
+
+        if (NoodleActor)
+        {
+            NoodleActor->Destroy();
+        }
+
+        StretchingNoodleComp = nullptr;
+    }
+
+    if (PhysicsHandle->GrabbedComponent)
+    {
+        PhysicsHandle->ReleaseComponent();
+    }
 }
 
 void AHAND::MoveUp(float Value)
