@@ -5,11 +5,12 @@
 #include "PhysicsEngine/PhysicsHandleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
-#include "Engine/Engine.h" 
+#include "Engine/Engine.h"
 #include "Components/PostProcessComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Materials/MaterialInterface.h" 
+#include "Materials/MaterialInterface.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 // ==========================================================
 // コンストラクタ（クラス生成時に一度だけ呼ばれる初期化処理）
@@ -70,7 +71,9 @@ void AHAND::BeginPlay()
     {
         HandMesh->SetStaticMesh(NewHandMesh);
         HandMesh->SetRelativeScale3D(FVector(-1.0f, 1.0f, 1.0f));
-        HandMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+
+        // ★手のひらが下を向くように、一番右の数値を「90.0f」に変更しました
+        HandMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 90.0f));
 
         // ★【修正】箸の先端を手前の箸（麺）に合わせるための位置ズレ（オフセット）★
         // 画像 image_12.png に基づき、箸先を下(-55.0)に下げ、
@@ -344,13 +347,37 @@ void AHAND::MoveUp(float Value)
 
     if (Value != 0.0f)
     {
-        // 入力値に応じて、掴んでいるオブジェクトの目標距離を遠ざける/近づける
+        // 【デバッグ1】ホイールの入力自体が届いているかチェック（水色の文字）
+        if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
+
         CubeTargetDistance += Value * 150.0f;
 
         // 何かを掴んで引っ張っている最中であれば、動かした量に応じてスコアを加算する
         if (bIsGrabbing)
         {
+            // 【デバッグ2】正しく「掴んだ状態」でホイールを回せているかチェック（緑の文字）
+            if (GEngine) GEngine->AddOnScreenDebugMessage(11, 0.5f, FColor::Green, TEXT("Status: Grabbing & Suctioning!"));
+
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
+
+            // 音ファイルを読み込む
+            USoundBase* EatSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/eat.eat")));
+            if (EatSound)
+            {
+                UGameplayStatics::PlaySound2D(this, EatSound);
+            }
+
+            if (EatSound)
+            {
+                // 【デバッグ3】音のデータが正常に見つかった場合（黄色の文字）
+                if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Yellow, TEXT("Sound File: FOUND & Playing!"));
+                UGameplayStatics::PlaySound2D(this, EatSound);
+            }
+            else
+            {
+                // 【デバッグ4】音のデータが見つからなかった場合（赤色の文字）
+                if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Red, TEXT("Sound File: NOT FOUND! Check your path!"));
+            }
         }
     }
 }
