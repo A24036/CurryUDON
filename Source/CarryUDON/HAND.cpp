@@ -11,6 +11,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "sukoa.h"
 
 // ==========================================================
 // コンストラクタ（クラス生成時に一度だけ呼ばれる初期化処理）
@@ -126,6 +127,12 @@ void AHAND::Tick(float DeltaTime)
             CurrentTimeRemaining = 0.0f;
             bIsGameOver = true;
             Release();
+            // スコアを足したい場所（MoveUp関数の中など）で以下のように書きます
+            Usukoa* GI = Cast<Usukoa>(GetGameInstance());
+            if (GI)
+            {
+                GI->score = CurrentScore; // 金庫のスコアを直接増やす！
+            }
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
     }
