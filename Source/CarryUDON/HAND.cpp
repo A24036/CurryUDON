@@ -73,14 +73,11 @@ void AHAND::BeginPlay()
         HandMesh->SetStaticMesh(NewHandMesh);
         HandMesh->SetRelativeScale3D(FVector(-1.0f, 1.0f, 1.0f));
 
-        // ★手のひらが下を向くように、一番右の数値を「90.0f」に変更しました
-        HandMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 90.0f));
+        // 手のひらが下を向くように設定
+        HandMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, -30.0f));
 
-        // ★【修正】箸の先端を手前の箸（麺）に合わせるための位置ズレ（オフセット）★
-        // 画像 image_12.png に基づき、箸先を下(-55.0)に下げ、
-        // かつカメラ側(-25.0)に引き、左右の位置(20.0)も微調整しました。
-        // これで箸先と箸（麺）オブジェクトが重なるはずです！
-        HandMesh->SetRelativeLocation(FVector(20.0f, 55.0f, -55.0f));
+        // 手の初期相対位置を設定
+        HandMesh->SetRelativeLocation(FVector(90.0f, -55.0f, -90.0f));
     }
 
     // マウスカーソルを画面に表示する
@@ -111,7 +108,6 @@ void AHAND::BeginPlay()
 
 // ==========================================================
 // Tick（毎フレーム、常に呼ばれ続ける処理）
-// マウスへの追従、タイマー処理、麺の伸縮、スコア等の画面表示を行います
 // ==========================================================
 void AHAND::Tick(float DeltaTime)
 {
@@ -123,15 +119,14 @@ void AHAND::Tick(float DeltaTime)
         CurrentTimeRemaining -= DeltaTime;
         if (CurrentTimeRemaining <= 0.0f)
         {
-            // 時間切れになったらゲームオーバー処理（掴んでいるものを離して次のマップへ移行）
             CurrentTimeRemaining = 0.0f;
             bIsGameOver = true;
             Release();
-            // スコアを足したい場所（MoveUp関数の中など）で以下のように書きます
+
             Usukoa* GI = Cast<Usukoa>(GetGameInstance());
             if (GI)
             {
-                GI->score = CurrentScore; // 金庫のスコアを直接増やす！
+                GI->score = CurrentScore;
             }
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
@@ -154,6 +149,10 @@ void AHAND::Tick(float DeltaTime)
         FVector MouseWorldLoc, MouseWorldDir;
         if (PC->DeprojectMousePositionToWorld(MouseWorldLoc, MouseWorldDir))
         {
+            // ★【修正箇所】掴んでいようがいまいが、手の奥行き（距離）は常に500で固定する！
+            // これにより、マウスに合わせて手は動きますが、カメラ側へ近づいてくることはなくなります。
+            HandFixedDistance = 500.0f;
+
             // 手の目標位置と、掴んでいるオブジェクトの目標位置を計算
             FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance);
             FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
@@ -167,33 +166,26 @@ void AHAND::Tick(float DeltaTime)
                 // スピードが閾値（SplashThreshold）を超えたら「カレーが跳ねた」と判定
                 if (Speed > SplashThreshold)
                 {
-                    CurrentCurryAlpha = 1.0f;  // 画面をカレーで汚す
-                    CurrentScore -= 200;       // ペナルティとしてスコアを200減らす
-                    if (CurrentScore < 0) CurrentScore = 0; // スコアがマイナスにならないようにする
+                    CurrentCurryAlpha = 1.0f;
+                    CurrentScore -= 200;
+                    if (CurrentScore < 0) CurrentScore = 0;
                 }
                 LastCubeDistance = CubeTargetDistance;
 
                 // 麺（StretchingNoodleComp）を掴んでいる場合の伸縮処理
                 if (StretchingNoodleComp)
                 {
-                    // ==============================================================
-                    // ★【修正】麺の先端をマウスカーソル（箸先）にピッタリ追従させる
-                    // ==============================================================
-                    // 生成地点（どんぶり）からカーソルまでの距離とベクトルを計算
                     FVector VectorToTarget = CubeTargetLoc - NoodleSpawnBaseLocation;
                     float Distance = VectorToTarget.Size();
 
                     if (Distance > 1.0f)
                     {
-                        // 麺の位置を、生成地点とカーソルの「中間地点」に配置する
                         FVector MidPoint = NoodleSpawnBaseLocation + (VectorToTarget * 0.5f);
                         StretchingNoodleComp->SetWorldLocation(MidPoint);
 
-                        // 麺の向き（回転）をカーソルの方向へ向ける
                         FRotator NewRot = FRotationMatrix::MakeFromZ(VectorToTarget).Rotator();
                         StretchingNoodleComp->SetWorldRotation(NewRot);
 
-                        // 距離に合わせて麺のZ軸（縦方向）のスケールを引き伸ばす
                         float MeshHeight = StretchingNoodleComp->GetStaticMesh()->GetBoundingBox().GetSize().Z;
                         if (MeshHeight <= 0.1f) MeshHeight = 100.0f;
 
@@ -201,19 +193,17 @@ void AHAND::Tick(float DeltaTime)
                         StretchingNoodleComp->SetWorldScale3D(FVector(NoodleOriginalScale.X, NoodleOriginalScale.Y, StretchScaleZ));
                     }
                 }
-                // 麺ではなく、普通の物理オブジェクトを掴んでいる場合はそちらを動かす
                 else if (PhysicsHandle->GrabbedComponent)
                 {
                     PhysicsHandle->SetTargetLocation(CubeTargetLoc);
                 }
             }
 
-            // 手のオブジェクト自体を、マウスカーソルの目標位置へ滑らかに移動させる
+            // 手のオブジェクト自体を、目標位置へ滑らかに移動させる
             SetActorLocation(FMath::VInterpTo(GetActorLocation(), HandTargetLoc, DeltaTime, InterpSpeed));
         }
     }
 
-    // カレーエフェクトが表示されている場合、時間経過とともに徐々に透明（フェードアウト）にする
     if (DynamicCurryMaterial && CurrentCurryAlpha > 0.0f)
     {
         float SlowerFadeSpeed = FadeSpeed * 0.5f;
@@ -224,16 +214,12 @@ void AHAND::Tick(float DeltaTime)
 
 // ==========================================================
 // SetupPlayerInputComponent
-// プレイヤーの入力（クリックやスクロール）と、処理（関数）を紐づける
 // ==========================================================
 void AHAND::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
-    // "Grab"（左クリック等）を押した時に Grab() を呼ぶ
     PlayerInputComponent->BindAction("Grab", IE_Pressed, this, &AHAND::Grab);
-    // "Grab"を離した時に Release() を呼ぶ
     PlayerInputComponent->BindAction("Grab", IE_Released, this, &AHAND::Release);
-    // "MoveUp"（マウスホイール等）を動かした時に MoveUp() を呼ぶ
     PlayerInputComponent->BindAxis("MoveUp", this, &AHAND::MoveUp);
 }
 
@@ -244,22 +230,18 @@ void AHAND::Grab()
 {
     if (bIsGameOver) return;
 
-    // 手の周囲に何かしらのオブジェクトがないか、箱状の判定（Box Sweep）を飛ばしてチェックする
     FVector GrabCheckLocation = GetActorLocation();
     FVector BoxSize(100.0f, 100.0f, 100.0f);
     FHitResult Hit;
     FCollisionQueryParams Params;
-    Params.AddIgnoredActor(this); // 自分自身（手）は当たり判定から除外
+    Params.AddIgnoredActor(this);
 
-    // オブジェクトに当たった場合
     if (GetWorld()->SweepSingleByChannel(Hit, GrabCheckLocation, GrabCheckLocation + FVector(0, 0, 1), FQuat::Identity, ECC_PhysicsBody, FCollisionShape::MakeBox(BoxSize), Params))
     {
         AActor* HitActor = Hit.GetActor();
 
-        // 当たった相手が「Spawner」タグを持っている場合（＝どんぶり等、麺の発生源）
         if (HitActor && HitActor->ActorHasTag(FName("Spawner")))
         {
-            // お椀の底（Spawnerの位置）から、新しい麺（AStaticMeshActor）を生成する
             FVector SpawnLocation = HitActor->GetActorLocation();
 
             FActorSpawnParameters SpawnParams;
@@ -269,12 +251,10 @@ void AHAND::Grab()
 
             if (NewBlock)
             {
-                // 生成した麺を動かせる状態にする
                 NewBlock->GetRootComponent()->SetMobility(EComponentMobility::Movable);
                 UStaticMeshComponent* ParentComp = Cast<UStaticMeshComponent>(HitActor->GetComponentByClass(UStaticMeshComponent::StaticClass()));
                 UStaticMeshComponent* NewComp = NewBlock->GetStaticMeshComponent();
 
-                // Spawner（親）と同じ見た目・マテリアル・スケールを新しい麺にコピーする
                 if (ParentComp && NewComp)
                 {
                     NewComp->SetStaticMesh(ParentComp->GetStaticMesh());
@@ -284,29 +264,24 @@ void AHAND::Grab()
                     NoodleOriginalScale = ParentComp->GetComponentScale();
                     NewComp->SetWorldScale3D(NoodleOriginalScale);
 
-                    // 麺は伸び縮みさせるだけで物理落下はさせないためオフにする
                     NewComp->SetSimulatePhysics(false);
                     NewComp->SetCollisionProfileName(TEXT("NoCollision"));
 
-                    // 掴んでいる状態（麺を引っ張っている状態）にする
                     bIsGrabbing = true;
                     StretchingNoodleComp = NewComp;
                     NoodleSpawnBaseLocation = SpawnLocation;
 
-                    // カメラからの距離を記録する
                     FVector CamLoc = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
                     CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
                     LastCubeDistance = CubeTargetDistance;
                 }
             }
-            return; // 麺を生成した場合はここで処理終了
+            return;
         }
 
-        // Spawner以外の普通の物理オブジェクト（Simulate Physicsがオンのもの）だった場合
         UPrimitiveComponent* HitComp = Hit.GetComponent();
         if (HitComp && HitComp->IsSimulatingPhysics())
         {
-            // カメラからの距離を記録して、PhysicsHandleで物理的に掴む
             FVector CamLoc = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
             CubeTargetDistance = FVector::Dist(HitActor->GetActorLocation(), CamLoc);
             LastCubeDistance = CubeTargetDistance;
@@ -325,20 +300,13 @@ void AHAND::Release()
 {
     bIsGrabbing = false;
 
-    // 麺を引っ張っていた場合、クリックを離した瞬間にその麺を消去（Destroy）する
     if (StretchingNoodleComp)
     {
         AActor* NoodleActor = StretchingNoodleComp->GetOwner();
-
-        if (NoodleActor)
-        {
-            NoodleActor->Destroy();
-        }
-
+        if (NoodleActor) { NoodleActor->Destroy(); }
         StretchingNoodleComp = nullptr;
     }
 
-    // 普通の物理オブジェクトを掴んでいた場合、PhysicsHandleから離して落下させる
     if (PhysicsHandle->GrabbedComponent)
     {
         PhysicsHandle->ReleaseComponent();
@@ -354,20 +322,16 @@ void AHAND::MoveUp(float Value)
 
     if (Value != 0.0f)
     {
-        // 【デバッグ1】ホイールの入力自体が届いているかチェック（水色の文字）
         if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
 
         CubeTargetDistance += Value * 150.0f;
 
-        // 何かを掴んで引っ張っている最中であれば、動かした量に応じてスコアを加算する
         if (bIsGrabbing)
         {
-            // 【デバッグ2】正しく「掴んだ状態」でホイールを回せているかチェック（緑の文字）
             if (GEngine) GEngine->AddOnScreenDebugMessage(11, 0.5f, FColor::Green, TEXT("Status: Grabbing & Suctioning!"));
 
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
 
-            // 音ファイルを読み込む
             USoundBase* EatSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/eat.eat")));
             if (EatSound)
             {
@@ -376,13 +340,11 @@ void AHAND::MoveUp(float Value)
 
             if (EatSound)
             {
-                // 【デバッグ3】音のデータが正常に見つかった場合（黄色の文字）
                 if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Yellow, TEXT("Sound File: FOUND & Playing!"));
                 UGameplayStatics::PlaySound2D(this, EatSound);
             }
             else
             {
-                // 【デバッグ4】音のデータが見つからなかった場合（赤色の文字）
                 if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Red, TEXT("Sound File: NOT FOUND! Check your path!"));
             }
         }
