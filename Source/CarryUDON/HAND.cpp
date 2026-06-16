@@ -320,6 +320,13 @@ void AHAND::MoveUp(float Value)
 {
     if (bIsGameOver) return;
 
+    // ★追加：ホイールの回転数を数えるカウンター（掴んでいない時は0にリセット）
+    static int32 WheelRotationCount = 0;
+    if (!bIsGrabbing)
+    {
+        WheelRotationCount = 0;
+    }
+
     if (Value != 0.0f)
     {
         if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
@@ -346,6 +353,14 @@ void AHAND::MoveUp(float Value)
             else
             {
                 if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Red, TEXT("Sound File: NOT FOUND! Check your path!"));
+            }
+
+            // ★追加：ホイール入力をカウントし、3回まわしたら麺を消去（Release）する
+            WheelRotationCount++;
+            if (WheelRotationCount >= 40)
+            {
+                Release();
+                WheelRotationCount = 0; // カウントをリセット
             }
         }
     }
