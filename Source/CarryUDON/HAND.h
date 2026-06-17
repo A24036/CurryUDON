@@ -84,4 +84,15 @@ private:
     FVector NoodleSpawnBaseLocation;
     FVector NoodleOriginalScale;
     // =======================================================
+
+    // ★追加：カメラ操作用の変数
+    UPROPERTY()
+    AActor* MyCameraActor;
+
+    UPROPERTY()
+    FVector OriginalCameraLocation;
+
+    // ====== ▼今回追加した滑らかなズーム用の変数 ▼ ======
+    FVector TargetCameraLocation;
+    float CameraZoomSpeed = 5.0f; // ズームの速さ（数値を大きくすると速くなります）
 };

@@ -71,13 +71,13 @@ void AHAND::BeginPlay()
     if (NewHandMesh && HandMesh)
     {
         HandMesh->SetStaticMesh(NewHandMesh);
-        HandMesh->SetRelativeScale3D(FVector(-1.0f, 1.0f, 1.0f));
+        HandMesh->SetRelativeScale3D(FVector(-2.0f, 2.0f, 2.0f));
 
         // 手のひらが下を向くように設定
         HandMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, -30.0f));
 
         // 手の初期相対位置を設定
-        HandMesh->SetRelativeLocation(FVector(90.0f, -55.0f, -90.0f));
+        HandMesh->SetRelativeLocation(FVector(90.0f, -140.0f, -120.0f));
     }
 
     // マウスカーソルを画面に表示する
@@ -103,6 +103,23 @@ void AHAND::BeginPlay()
         DynamicCurryMaterial = UMaterialInstanceDynamic::Create(CurryScreenMaterial, this);
         PostProcessComponent->AddOrUpdateBlendable(DynamicCurryMaterial, 1.0f);
         DynamicCurryMaterial->SetScalarParameterValue(FName("Opacity"), 0.0f);
+    }
+
+    // ★追加：カメラ関係の初期化
+    OriginalCameraLocation = FVector::ZeroVector;
+
+    // シーン上の「Camera」BPを探して保持する
+    TArray<AActor*> FoundActors;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), FoundActors);
+    for (AActor* Actor : FoundActors)
+    {
+        if (Actor->GetName().Contains(TEXT("Camera")))
+        {
+            MyCameraActor = Actor;
+            OriginalCameraLocation = MyCameraActor->GetActorLocation(); // 追加：初期位置を記憶
+            TargetCameraLocation = OriginalCameraLocation;              // 追加：目標位置も初期位置に設定
+            break;
+        }
     }
 }
 
@@ -149,8 +166,7 @@ void AHAND::Tick(float DeltaTime)
         FVector MouseWorldLoc, MouseWorldDir;
         if (PC->DeprojectMousePositionToWorld(MouseWorldLoc, MouseWorldDir))
         {
-            // ★【修正箇所】掴んでいようがいまいが、手の奥行き（距離）は常に500で固定する！
-            // これにより、マウスに合わせて手は動きますが、カメラ側へ近づいてくることはなくなります。
+            // 掴んでいようがいまいが、手の奥行き（距離）は常に500で固定する
             HandFixedDistance = 500.0f;
 
             // 手の目標位置と、掴んでいるオブジェクトの目標位置を計算
@@ -209,6 +225,13 @@ void AHAND::Tick(float DeltaTime)
         float SlowerFadeSpeed = FadeSpeed * 0.5f;
         CurrentCurryAlpha = FMath::Max(0.0f, CurrentCurryAlpha - SlowerFadeSpeed * DeltaTime);
         DynamicCurryMaterial->SetScalarParameterValue(FName("Opacity"), CurrentCurryAlpha);
+    }
+
+    // ★追加：カメラを目標位置（TargetCameraLocation）へ滑らかに移動させる
+    if (MyCameraActor)
+    {
+        FVector CurrentCamLoc = MyCameraActor->GetActorLocation();
+        MyCameraActor->SetActorLocation(FMath::VInterpTo(CurrentCamLoc, TargetCameraLocation, DeltaTime, CameraZoomSpeed));
     }
 }
 
@@ -271,7 +294,25 @@ void AHAND::Grab()
                     StretchingNoodleComp = NewComp;
                     NoodleSpawnBaseLocation = SpawnLocation;
 
-                    FVector CamLoc = GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
+                    // ★変更：左クリック（Grab）した瞬間にカメラの目標位置をうどんに近づける
+                    if (MyCameraActor)
+                    {
+                        if (OriginalCameraLocation == FVector::ZeroVector)
+                        {
+                            OriginalCameraLocation = MyCameraActor->GetActorLocation(); // 元のカメラ位置を記憶
+                            TargetCameraLocation = OriginalCameraLocation;
+                        }
+
+                        // カメラからうどん（Spawner）への方向を計算し、うどんの少し手前(200.0f)の座標を出す
+                        FVector DirToNoodle = (NoodleSpawnBaseLocation - OriginalCameraLocation).GetSafeNormal();
+                        FVector ZoomLocation = NoodleSpawnBaseLocation - (DirToNoodle * 200.0f); // ←この200.0fで近づき具合を調整できます
+
+                        // 直接移動させず、TargetCameraLocation（目標地点）を書き換える
+                        TargetCameraLocation = ZoomLocation;
+                    }
+
+                    // 移動後のカメラ位置を基準に距離を計算する
+                    FVector CamLoc = MyCameraActor ? MyCameraActor->GetActorLocation() : GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
                     CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
                     LastCubeDistance = CubeTargetDistance;
                 }
@@ -311,6 +352,13 @@ void AHAND::Release()
     {
         PhysicsHandle->ReleaseComponent();
     }
+
+    // ★変更：左クリックを離したら、カメラの目標位置を記憶しておいた元の位置に戻す
+    if (MyCameraActor && OriginalCameraLocation != FVector::ZeroVector)
+    {
+        TargetCameraLocation = OriginalCameraLocation;
+        // ※滑らかに戻るために記憶をリセットしないようにしました
+    }
 }
 
 // ==========================================================
@@ -320,7 +368,6 @@ void AHAND::MoveUp(float Value)
 {
     if (bIsGameOver) return;
 
-    // ★追加：ホイールの回転数を数えるカウンター（掴んでいない時は0にリセット）
     static int32 WheelRotationCount = 0;
     if (!bIsGrabbing)
     {
@@ -355,7 +402,6 @@ void AHAND::MoveUp(float Value)
                 if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Red, TEXT("Sound File: NOT FOUND! Check your path!"));
             }
 
-            // ★追加：ホイール入力をカウントし、3回まわしたら麺を消去（Release）する
             WheelRotationCount++;
             if (WheelRotationCount >= 40)
             {
