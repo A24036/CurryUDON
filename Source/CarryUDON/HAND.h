@@ -55,6 +55,7 @@ public:
     UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
     float FadeSpeed = 0.5f;
 
+    // タイマー用の変数
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
     float GameTimeLimit = 30.0f;
 
@@ -76,23 +77,22 @@ private:
     UPROPERTY()
     UMaterialInstanceDynamic* DynamicCurryMaterial;
 
+    // ====== ▼今回追加した「麺を伸ばす」ための変数 ▼ ======
     UPROPERTY()
     class UStaticMeshComponent* StretchingNoodleComp = nullptr;
 
     FVector NoodleSpawnBaseLocation;
     FVector NoodleOriginalScale;
+    // =======================================================
 
+    // ★追加：カメラ操作用の変数
     UPROPERTY()
     AActor* MyCameraActor;
 
     UPROPERTY()
     FVector OriginalCameraLocation;
 
-    UPROPERTY()
-    AActor* TargetCubeActor;
-
-    // 今回使う3つの変数
-    float CurrentVisualPull = 10.0f; // 見た目の長さ
-    float DisappearTimer = 0.0f;     // ディレイ用タイマー
-    int32 ScrollCount = 0;           // ★追加：ホイールを回した回数
+    // ====== ▼今回追加した滑らかなズーム用の変数 ▼ ======
+    FVector TargetCameraLocation;
+    float CameraZoomSpeed = 5.0f; // ズームの速さ（数値を大きくすると速くなります）
 };
