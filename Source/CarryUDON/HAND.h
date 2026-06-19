@@ -55,13 +55,7 @@ public:
     UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
     float FadeSpeed = 0.5f;
 
-/*
-<<<<<<< Updated upstream
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Game Rules")
-=======
-*/
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Game Rules")
-// >>>>>>> Stashed changes
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
     float GameTimeLimit = 30.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
@@ -82,8 +76,13 @@ private:
     UPROPERTY()
     UMaterialInstanceDynamic* DynamicCurryMaterial;
 
+    // ★ ケーブルコンポーネントを使うための宣言
     UPROPERTY()
-    class UStaticMeshComponent* StretchingNoodleComp = nullptr;
+    class UCableComponent* StretchingNoodleComp = nullptr;
+
+    // ★ ケーブルの土台となる透明なアクター
+    UPROPERTY()
+    AActor* NoodleActor = nullptr;
 
     FVector NoodleSpawnBaseLocation;
     FVector NoodleOriginalScale;
@@ -97,10 +96,7 @@ private:
     UPROPERTY()
     AActor* TargetCubeActor;
 
-    // ★末端の滑らかなアニメーション用
     float CurrentVisualPull = 10.0f;
-
-    // ★40回スクロールした後のディレイ（待機）管理用
     float DisappearTimer = 0.0f;
     bool bIsReadyToDisappear = false;
 };

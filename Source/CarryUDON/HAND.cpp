@@ -13,6 +13,9 @@
 #include "Sound/SoundBase.h"
 #include "sukoa.h"
 
+// ★ 追加：ケーブルコンポーネント用のインクルード
+#include "CableComponent.h"
+
 // ==========================================================
 // コンストラクタ
 // ==========================================================
@@ -135,7 +138,6 @@ void AHAND::Tick(float DeltaTime)
 
             if (bIsGrabbing)
             {
-                // 見た目を滑らかに追いつかせる
                 CurrentVisualPull = FMath::FInterpTo(CurrentVisualPull, CubeTargetDistance, DeltaTime, 10.0f);
 
                 float Speed = FMath::Abs(CubeTargetDistance - LastCubeDistance) / DeltaTime;
@@ -147,7 +149,7 @@ void AHAND::Tick(float DeltaTime)
                 }
                 LastCubeDistance = CubeTargetDistance;
 
-                if (StretchingNoodleComp)
+                if (StretchingNoodleComp && NoodleActor)
                 {
                     FVector TargetLoc = CubeTargetLoc;
                     FVector TailLoc = NoodleSpawnBaseLocation;
@@ -159,7 +161,6 @@ void AHAND::Tick(float DeltaTime)
                         FVector DirToMouth = (MouthLoc - BowlLoc).GetSafeNormal();
                         float MaxDist = FVector::Dist(BowlLoc, MouthLoc);
 
-                        // 滑らかな CurrentVisualPull で位置を計算する
                         if (CurrentVisualPull <= MaxDist)
                         {
                             TargetLoc = BowlLoc + (DirToMouth * CurrentVisualPull);
@@ -180,28 +181,25 @@ void AHAND::Tick(float DeltaTime)
                             }
                         }
 
-                        // 40回スクロール完了後、タイマーを動かして消す処理
                         if (bIsReadyToDisappear)
                         {
                             DisappearTimer += DeltaTime;
 
-                            if (DisappearTimer >= 1.0f) // 1.0秒でシュッと口に入り切る
+                            if (DisappearTimer >= 1.0f)
                             {
                                 TailLoc = MouthLoc;
                             }
-                            if (DisappearTimer >= 1.5f) // 1.5秒で完全に消滅（Release）
+                            if (DisappearTimer >= 1.5f)
                             {
                                 Release();
                                 bIsReadyToDisappear = false;
                                 DisappearTimer = 0.0f;
-
-                                // クラッシュ回避：うどんを消したらすぐ関数を抜ける
                                 return;
                             }
                         }
                     }
 
-                    if (StretchingNoodleComp)
+                    if (StretchingNoodleComp && NoodleActor)
                     {
                         FVector VectorToTarget = TargetLoc - TailLoc;
                         float Distance = VectorToTarget.Size();
@@ -209,22 +207,15 @@ void AHAND::Tick(float DeltaTime)
                         if (Distance > 1.0f)
                         {
                             StretchingNoodleComp->SetVisibility(true);
-                            FVector MidPoint = TailLoc + (VectorToTarget * 0.5f);
-                            StretchingNoodleComp->SetWorldLocation(MidPoint);
 
-                            FRotator NewRot = FRotationMatrix::MakeFromZ(VectorToTarget).Rotator();
-                            StretchingNoodleComp->SetWorldRotation(NewRot);
+                            // 始点（どんぶり側）をセット
+                            NoodleActor->SetActorLocation(TailLoc);
 
-                            // ====== ▼クラッシュ対策として安全確認を追加！▼ ======
-                            float MeshHeight = 100.0f; // まずデフォルトのサイズを決めておく
-                            if (UStaticMesh* NoodleMesh = StretchingNoodleComp->GetStaticMesh()) // メッシュが空っぽじゃないか確認！
-                            {
-                                MeshHeight = NoodleMesh->GetBoundingBox().GetSize().Z;
-                            }
-                            if (MeshHeight <= 0.1f) MeshHeight = 100.0f;
-                            // ====================================================
+                            // 終点（口・マウス側）への相対位置をセット
+                            StretchingNoodleComp->EndLocation = VectorToTarget;
 
-                            StretchingNoodleComp->SetWorldScale3D(FVector(NoodleOriginalScale.X, NoodleOriginalScale.Y, Distance / MeshHeight));
+                            // 麺の長さを距離に合わせて伸ばす
+                            StretchingNoodleComp->CableLength = Distance;
                         }
                         else
                         {
@@ -273,7 +264,7 @@ void AHAND::Grab()
     FCollisionQueryParams Params;
     Params.AddIgnoredActor(this);
 
-    if (GetWorld()->SweepSingleByChannel(Hit, GrabCheckLocation, GrabCheckLocation + FVector(0, 0, 1), FQuat::Identity, ECC_PhysicsBody, FCollisionShape::MakeBox(BoxSize), Params))
+    if (GetWorld()->SweepSingleByChannel(Hit, GrabCheckLocation, GrabCheckLocation + FVector(0, 0, 1), FQuat::Identity, ECC_Visibility, FCollisionShape::MakeBox(BoxSize), Params))
     {
         AActor* HitActor = Hit.GetActor();
 
@@ -283,52 +274,63 @@ void AHAND::Grab()
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-            AStaticMeshActor* NewBlock = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnLocation, HitActor->GetActorRotation(), SpawnParams);
+            // ケーブルをぶら下げるための「空のアクター」を生成
+            NoodleActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), SpawnLocation, HitActor->GetActorRotation(), SpawnParams);
 
-            if (NewBlock)
+            if (NoodleActor)
             {
-                NewBlock->GetRootComponent()->SetMobility(EComponentMobility::Movable);
-                UStaticMeshComponent* ParentComp = Cast<UStaticMeshComponent>(HitActor->GetComponentByClass(UStaticMeshComponent::StaticClass()));
-                UStaticMeshComponent* NewComp = NewBlock->GetStaticMeshComponent();
+                USceneComponent* RootComp = NewObject<USceneComponent>(NoodleActor);
+                NoodleActor->SetRootComponent(RootComp);
+                RootComp->RegisterComponent();
 
-                if (ParentComp && NewComp)
+                // ケーブルコンポーネントをアクターに追加
+                UCableComponent* CableComp = NewObject<UCableComponent>(NoodleActor);
+                CableComp->SetupAttachment(RootComp);
+
+                // ====================================================
+                // ★修正：RegisterComponent（計算開始）の【前】に設定を書く！
+                // ====================================================
+                CableComp->CableWidth = 10.0f; // 麺の太さ
+                CableComp->NumSegments = 30;   // 分割数を増やす（ここがクラッシュの原因でした）
+                CableComp->CableLength = 0.0f; // 初期は長さ0
+                CableComp->EndLocation = FVector::ZeroVector; // 終点初期化
+
+                // スポナー（クリックした対象）からマテリアルを引き継ぐ
+                UMeshComponent* ParentComp = Cast<UMeshComponent>(HitActor->GetComponentByClass(UMeshComponent::StaticClass()));
+                if (ParentComp)
                 {
-                    NewComp->SetStaticMesh(ParentComp->GetStaticMesh());
                     int32 MatCount = ParentComp->GetNumMaterials();
-                    for (int32 i = 0; i < MatCount; i++) { NewComp->SetMaterial(i, ParentComp->GetMaterial(i)); }
-
-                    NoodleOriginalScale = ParentComp->GetComponentScale();
-                    NewComp->SetWorldScale3D(NoodleOriginalScale);
-
-                    NewComp->SetSimulatePhysics(false);
-                    NewComp->SetCollisionProfileName(TEXT("NoCollision"));
-
-                    bIsGrabbing = true;
-                    StretchingNoodleComp = NewComp;
-                    NoodleSpawnBaseLocation = SpawnLocation;
-
-                    // 掴むたびにフラグをリセット
-                    bIsReadyToDisappear = false;
-                    DisappearTimer = 0.0f;
-
-                    // カメラズーム（元のコードそのまま！）
-                    if (MyCameraActor)
-                    {
-                        if (OriginalCameraLocation == FVector::ZeroVector)
-                        {
-                            OriginalCameraLocation = MyCameraActor->GetActorLocation();
-                        }
-                        FVector DirToNoodle = (NoodleSpawnBaseLocation - OriginalCameraLocation).GetSafeNormal();
-                        FVector ZoomLocation = NoodleSpawnBaseLocation - (DirToNoodle * 200.0f);
-                        MyCameraActor->SetActorLocation(ZoomLocation);
-                    }
-
-                    FVector CamLoc = MyCameraActor ? MyCameraActor->GetActorLocation() : GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
-
-                    CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
-                    CurrentVisualPull = CubeTargetDistance;
-                    LastCubeDistance = CubeTargetDistance;
+                    for (int32 i = 0; i < MatCount; i++) { CableComp->SetMaterial(i, ParentComp->GetMaterial(i)); }
                 }
+
+                // ★すべての設定が終わってから、コンポーネントを登録（有効化）する！
+                CableComp->RegisterComponent();
+
+                bIsGrabbing = true;
+                StretchingNoodleComp = CableComp;
+                NoodleSpawnBaseLocation = SpawnLocation;
+
+                if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("!!! つかめた !!! (麺:CableComponent)"));
+
+                bIsReadyToDisappear = false;
+                DisappearTimer = 0.0f;
+
+                if (MyCameraActor)
+                {
+                    if (OriginalCameraLocation == FVector::ZeroVector)
+                    {
+                        OriginalCameraLocation = MyCameraActor->GetActorLocation();
+                    }
+                    FVector DirToNoodle = (NoodleSpawnBaseLocation - OriginalCameraLocation).GetSafeNormal();
+                    FVector ZoomLocation = NoodleSpawnBaseLocation - (DirToNoodle * 200.0f);
+                    MyCameraActor->SetActorLocation(ZoomLocation);
+                }
+
+                FVector CamLoc = MyCameraActor ? MyCameraActor->GetActorLocation() : GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
+
+                CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
+                CurrentVisualPull = CubeTargetDistance;
+                LastCubeDistance = CubeTargetDistance;
             }
             return;
         }
@@ -343,6 +345,8 @@ void AHAND::Grab()
             bIsGrabbing = true;
             PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
+
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("!!! つかめた !!! (物理オブジェクト)"));
         }
     }
 }
@@ -354,10 +358,10 @@ void AHAND::Release()
 {
     bIsGrabbing = false;
 
-    if (StretchingNoodleComp)
+    if (NoodleActor)
     {
-        AActor* NoodleActor = StretchingNoodleComp->GetOwner();
-        if (NoodleActor) { NoodleActor->Destroy(); }
+        NoodleActor->Destroy();
+        NoodleActor = nullptr;
         StretchingNoodleComp = nullptr;
     }
 
@@ -366,7 +370,6 @@ void AHAND::Release()
         PhysicsHandle->ReleaseComponent();
     }
 
-    // カメラ元に戻す（元のコードそのまま！）
     if (MyCameraActor && OriginalCameraLocation != FVector::ZeroVector)
     {
         MyCameraActor->SetActorLocation(OriginalCameraLocation);
@@ -392,8 +395,6 @@ void AHAND::MoveUp(float Value)
         if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
 
         CubeTargetDistance += Value * 150.0f;
-
-        // ここで直接、限界の数字を指定する（最小10.0 〜 最大3000.0）
         CubeTargetDistance = FMath::Clamp(CubeTargetDistance, 10.0f, 300000.0f);
 
         if (bIsGrabbing)
@@ -406,12 +407,7 @@ void AHAND::MoveUp(float Value)
             if (EatSound)
             {
                 UGameplayStatics::PlaySound2D(this, EatSound);
-            }
-
-            if (EatSound)
-            {
                 if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Yellow, TEXT("Sound File: FOUND & Playing!"));
-                UGameplayStatics::PlaySound2D(this, EatSound);
             }
 
             WheelRotationCount++;
