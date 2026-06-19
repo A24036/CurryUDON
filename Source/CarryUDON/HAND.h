@@ -91,8 +91,10 @@ private:
     UPROPERTY()
     AActor* TargetCubeActor;
 
-    // 今回使う3つの変数
-    float CurrentVisualPull = 10.0f; // 見た目の長さ
-    float DisappearTimer = 0.0f;     // ディレイ用タイマー
-    int32 ScrollCount = 0;           // ★追加：ホイールを回した回数
+    // ★末端の滑らかなアニメーション用
+    float CurrentVisualPull = 10.0f;
+
+    // ★40回スクロールした後のディレイ（待機）管理用
+    float DisappearTimer = 0.0f;
+    bool bIsReadyToDisappear = false;
 };

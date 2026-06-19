@@ -1,4 +1,4 @@
-#include "HAND.h"
+Ôªø#include "HAND.h"
 #include "GameFramework/PlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/StaticMesh.h"
@@ -14,15 +14,13 @@
 #include "sukoa.h"
 
 // ==========================================================
-// ÉRÉìÉXÉgÉâÉNÉ^
+// „Ç≥„É≥„Çπ„Éà„É©„ÇØ„Çø
 // ==========================================================
 AHAND::AHAND()
 {
     PrimaryActorTick.bCanEverTick = true;
-
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     RootComponent = SceneRoot;
-
     HandMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HandMesh"));
     HandMesh->SetupAttachment(SceneRoot);
 
@@ -35,7 +33,6 @@ AHAND::AHAND()
 
     HandMesh->SetSimulatePhysics(false);
     HandMesh->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
-
     PhysicsHandle = CreateDefaultSubobject<UPhysicsHandleComponent>(TEXT("PhysicsHandle"));
 
     PostProcessComponent = CreateDefaultSubobject<UPostProcessComponent>(TEXT("PostProcessComponent"));
@@ -43,10 +40,7 @@ AHAND::AHAND()
     PostProcessComponent->bUnbound = true;
 
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> CurryMatAsset(TEXT("Material'/Game/seisaku/curry.curry'"));
-    if (CurryMatAsset.Succeeded())
-    {
-        CurryScreenMaterial = CurryMatAsset.Object;
-    }
+    if (CurryMatAsset.Succeeded()) { CurryScreenMaterial = CurryMatAsset.Object; }
 }
 
 // ==========================================================
@@ -93,19 +87,12 @@ void AHAND::BeginPlay()
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), AActor::StaticClass(), FoundActors);
     for (AActor* Actor : FoundActors)
     {
-        if (Actor->GetName().Contains(TEXT("Camera")))
-        {
-            MyCameraActor = Actor;
-            break;
-        }
+        if (Actor->GetName().Contains(TEXT("Camera"))) { MyCameraActor = Actor; }
     }
 
     TArray<AActor*> FoundCubes;
     UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("TargetCube"), FoundCubes);
-    if (FoundCubes.Num() > 0)
-    {
-        TargetCubeActor = FoundCubes[0];
-    }
+    if (FoundCubes.Num() > 0) { TargetCubeActor = FoundCubes[0]; }
 }
 
 // ==========================================================
@@ -125,10 +112,7 @@ void AHAND::Tick(float DeltaTime)
             Release();
 
             Usukoa* GI = Cast<Usukoa>(GetGameInstance());
-            if (GI)
-            {
-                GI->score = CurrentScore;
-            }
+            if (GI) { GI->score = CurrentScore; }
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
     }
@@ -146,14 +130,15 @@ void AHAND::Tick(float DeltaTime)
         if (PC->DeprojectMousePositionToWorld(MouseWorldLoc, MouseWorldDir))
         {
             HandFixedDistance = 500.0f;
-
             FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance);
             FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
 
             if (bIsGrabbing)
             {
-                float Speed = FMath::Abs(CubeTargetDistance - LastCubeDistance) / DeltaTime;
+                // Ë¶ã„ÅüÁõÆ„ÇíÊªë„Çâ„Åã„Å´ËøΩ„ÅÑ„Å§„Åã„Åõ„Çã
+                CurrentVisualPull = FMath::FInterpTo(CurrentVisualPull, CubeTargetDistance, DeltaTime, 10.0f);
 
+                float Speed = FMath::Abs(CubeTargetDistance - LastCubeDistance) / DeltaTime;
                 if (Speed > SplashThreshold)
                 {
                     CurrentCurryAlpha = 1.0f;
@@ -164,8 +149,8 @@ void AHAND::Tick(float DeltaTime)
 
                 if (StretchingNoodleComp)
                 {
-                    FVector TipLoc = CubeTargetLoc;  // êÊí[Åiå˚ë§Åj
-                    FVector TailLoc = NoodleSpawnBaseLocation; // ññí[ÅiäÌë§Åj
+                    FVector TargetLoc = CubeTargetLoc;
+                    FVector TailLoc = NoodleSpawnBaseLocation;
 
                     if (TargetCubeActor)
                     {
@@ -174,69 +159,76 @@ void AHAND::Tick(float DeltaTime)
                         FVector DirToMouth = (MouthLoc - BowlLoc).GetSafeNormal();
                         float MaxDist = FVector::Dist(BowlLoc, MouthLoc);
 
-                        if (CubeTargetDistance <= MaxDist)
+                        // Êªë„Çâ„Åã„Å™ CurrentVisualPull „Åß‰ΩçÁΩÆ„ÇíË®àÁÆó„Åô„Çã
+                        if (CurrentVisualPull <= MaxDist)
                         {
-                            // 1. Ç‹Çæå˚(Cube3)Ç…ìÕÇ¢ÇƒÇ¢Ç»Ç¢ÅFäÌÇ©ÇÁå˚Ç÷å¸Ç©Ç¡ÇƒêLÇ—ÇÈ
-                            TailLoc = BowlLoc;
-                            TipLoc = BowlLoc + (DirToMouth * CubeTargetDistance);
-                            DisappearTimer = 0.0f; // ãzÇ¢çûÇ›íÜÇÕÉ^ÉCÉ}Å[ÇÉäÉZÉbÉg
+                            TargetLoc = BowlLoc + (DirToMouth * CurrentVisualPull);
                         }
                         else
                         {
-                            // 2. å˚(Cube3)Ç…ìÕÇ¢ÇΩå„ÅFññí[Ç™äÌÇ©ÇÁó£ÇÍÇƒè„Ç…ãzÇ¢çûÇ‹ÇÍÇÈ
-                            TipLoc = MouthLoc;
-                            float OverPull = CubeTargetDistance - MaxDist;
+                            TargetLoc = MouthLoc;
+                            float OverPull = CurrentVisualPull - MaxDist;
+                            float MaxOverPull = FMath::Max(0.0f, MaxDist - 15.0f);
 
-                            // ÅöïœçXÅFäÆëSÇ…ãzÇ¢çûÇ›èIÇÌÇÈíºëOÇ≈ÅAå˚å≥Ç…è≠Çµ(15cm)ÇæÇØñÀÇécÇµÇƒÉXÉgÉbÉvÇ∑ÇÈ
-                            if (OverPull >= MaxDist - 15.0f)
+                            if (OverPull >= MaxOverPull)
                             {
-                                TailLoc = MouthLoc - (DirToMouth * 15.0f); // å˚å≥Ç…ññí[ÇécÇ∑
-
-                                // ÅöïœçXÅFÉfÉBÉåÉCÉ^ÉCÉ}Å[ÇÃÉJÉEÉìÉgäJén
-                                DisappearTimer += DeltaTime;
-
-                                // 0.6ïbä‘(ÉfÉBÉåÉC)åoâﬂÇµÇΩÇÁí∑Ç≥Ç0Ç…ÇµÇƒè¡ñ≈Ç≥ÇπÇÈ
-                                if (DisappearTimer >= 0.6f)
-                                {
-                                    TailLoc = MouthLoc;
-                                }
+                                TailLoc = MouthLoc - (DirToMouth * 15.0f);
                             }
                             else
                             {
                                 TailLoc = BowlLoc + (DirToMouth * OverPull);
+                            }
+                        }
+
+                        // 40Âõû„Çπ„ÇØ„É≠„Éº„É´ÂÆå‰∫ÜÂæå„ÄÅ„Çø„Ç§„Éû„Éº„ÇíÂãï„Åã„Åó„Å¶Ê∂à„ÅôÂá¶ÁêÜ
+                        if (bIsReadyToDisappear)
+                        {
+                            DisappearTimer += DeltaTime;
+
+                            if (DisappearTimer >= 1.0f) // 1.0Áßí„Åß„Ç∑„É•„ÉÉ„Å®Âè£„Å´ÂÖ•„ÇäÂàá„Çã
+                            {
+                                TailLoc = MouthLoc;
+                            }
+                            if (DisappearTimer >= 1.5f) // 1.5Áßí„ÅßÂÆåÂÖ®„Å´Ê∂àÊªÖÔºàReleaseÔºâ
+                            {
+                                Release();
+                                bIsReadyToDisappear = false;
                                 DisappearTimer = 0.0f;
+
+                                // „ÇØ„É©„ÉÉ„Ç∑„É•ÂõûÈÅøÔºö„ÅÜ„Å©„Çì„ÇíÊ∂à„Åó„Åü„Çâ„Åô„ÅêÈñ¢Êï∞„ÇíÊäú„Åë„Çã
+                                return;
                             }
                         }
                     }
 
-                    FVector VectorToTarget = TipLoc - TailLoc;
-                    float Distance = VectorToTarget.Size();
-
-                    // ãóó£Ç™Ç†ÇÈèÍçáÇÕñÀÇï`âÊ
-                    if (Distance > 1.0f)
+                    if (StretchingNoodleComp)
                     {
-                        StretchingNoodleComp->SetVisibility(true);
-                        FVector MidPoint = TailLoc + (VectorToTarget * 0.5f);
-                        StretchingNoodleComp->SetWorldLocation(MidPoint);
+                        FVector VectorToTarget = TargetLoc - TailLoc;
+                        float Distance = VectorToTarget.Size();
 
-                        FRotator NewRot = FRotationMatrix::MakeFromZ(VectorToTarget).Rotator();
-                        StretchingNoodleComp->SetWorldRotation(NewRot);
-
-                        float MeshHeight = StretchingNoodleComp->GetStaticMesh()->GetBoundingBox().GetSize().Z;
-                        if (MeshHeight <= 0.1f) MeshHeight = 100.0f;
-
-                        float StretchScaleZ = Distance / MeshHeight;
-                        StretchingNoodleComp->SetWorldScale3D(FVector(NoodleOriginalScale.X, NoodleOriginalScale.Y, StretchScaleZ));
-                    }
-                    else
-                    {
-                        // í∑Ç≥Ç™É[ÉçÇ…Ç»Ç¡ÇΩÇÁîÒï\é¶Ç…Ç∑ÇÈ
-                        StretchingNoodleComp->SetVisibility(false);
-
-                        // Åöí«â¡ÅFÉfÉBÉåÉCÇ™äÆóπÇµÇƒäÆëSÇ…è¡Ç¶ÇΩÇÁÅAé©ìÆìIÇ…Release()ÇåƒÇ—èoÇµÇƒéüÇÃÇ§Ç«ÇÒÇêHÇ◊ÇÁÇÍÇÈÇÊÇ§Ç…Ç∑ÇÈ
-                        if (DisappearTimer >= 0.6f)
+                        if (Distance > 1.0f)
                         {
-                            Release();
+                            StretchingNoodleComp->SetVisibility(true);
+                            FVector MidPoint = TailLoc + (VectorToTarget * 0.5f);
+                            StretchingNoodleComp->SetWorldLocation(MidPoint);
+
+                            FRotator NewRot = FRotationMatrix::MakeFromZ(VectorToTarget).Rotator();
+                            StretchingNoodleComp->SetWorldRotation(NewRot);
+
+                            // ====== ‚ñº„ÇØ„É©„ÉÉ„Ç∑„É•ÂØæÁ≠ñ„Å®„Åó„Å¶ÂÆâÂÖ®Á¢∫Ë™ç„ÇíËøΩÂä†ÔºÅ‚ñº ======
+                            float MeshHeight = 100.0f; // „Åæ„Åö„Éá„Éï„Ç©„É´„Éà„ÅÆ„Çµ„Ç§„Ç∫„ÇíÊ±∫„ÇÅ„Å¶„Åä„Åè
+                            if (UStaticMesh* NoodleMesh = StretchingNoodleComp->GetStaticMesh()) // „É°„ÉÉ„Ç∑„É•„ÅåÁ©∫„Å£„ÅΩ„Åò„ÇÉ„Å™„ÅÑ„ÅãÁ¢∫Ë™çÔºÅ
+                            {
+                                MeshHeight = NoodleMesh->GetBoundingBox().GetSize().Z;
+                            }
+                            if (MeshHeight <= 0.1f) MeshHeight = 100.0f;
+                            // ====================================================
+
+                            StretchingNoodleComp->SetWorldScale3D(FVector(NoodleOriginalScale.X, NoodleOriginalScale.Y, Distance / MeshHeight));
+                        }
+                        else
+                        {
+                            StretchingNoodleComp->SetVisibility(false);
                         }
                     }
                 }
@@ -245,7 +237,6 @@ void AHAND::Tick(float DeltaTime)
                     PhysicsHandle->SetTargetLocation(CubeTargetLoc);
                 }
             }
-
             SetActorLocation(FMath::VInterpTo(GetActorLocation(), HandTargetLoc, DeltaTime, InterpSpeed));
         }
     }
@@ -289,7 +280,6 @@ void AHAND::Grab()
         if (HitActor && HitActor->ActorHasTag(FName("Spawner")))
         {
             FVector SpawnLocation = HitActor->GetActorLocation();
-
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
@@ -317,11 +307,27 @@ void AHAND::Grab()
                     StretchingNoodleComp = NewComp;
                     NoodleSpawnBaseLocation = SpawnLocation;
 
-                    CubeTargetDistance = 10.0f;
-                    LastCubeDistance = CubeTargetDistance;
-
-                    // Åöí«â¡ÅFíÕÇ›íºÇ∑ÇΩÇ—Ç…É^ÉCÉ}Å[ÇÉäÉZÉbÉg
+                    // Êé¥„ÇÄ„Åü„Å≥„Å´„Éï„É©„Ç∞„Çí„É™„Çª„ÉÉ„Éà
+                    bIsReadyToDisappear = false;
                     DisappearTimer = 0.0f;
+
+                    // „Ç´„É°„É©„Ç∫„Éº„É†ÔºàÂÖÉ„ÅÆ„Ç≥„Éº„Éâ„Åù„ÅÆ„Åæ„ÅæÔºÅÔºâ
+                    if (MyCameraActor)
+                    {
+                        if (OriginalCameraLocation == FVector::ZeroVector)
+                        {
+                            OriginalCameraLocation = MyCameraActor->GetActorLocation();
+                        }
+                        FVector DirToNoodle = (NoodleSpawnBaseLocation - OriginalCameraLocation).GetSafeNormal();
+                        FVector ZoomLocation = NoodleSpawnBaseLocation - (DirToNoodle * 200.0f);
+                        MyCameraActor->SetActorLocation(ZoomLocation);
+                    }
+
+                    FVector CamLoc = MyCameraActor ? MyCameraActor->GetActorLocation() : GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetCameraLocation();
+
+                    CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
+                    CurrentVisualPull = CubeTargetDistance;
+                    LastCubeDistance = CubeTargetDistance;
                 }
             }
             return;
@@ -359,6 +365,13 @@ void AHAND::Release()
     {
         PhysicsHandle->ReleaseComponent();
     }
+
+    // „Ç´„É°„É©ÂÖÉ„Å´Êàª„ÅôÔºàÂÖÉ„ÅÆ„Ç≥„Éº„Éâ„Åù„ÅÆ„Åæ„ÅæÔºÅÔºâ
+    if (MyCameraActor && OriginalCameraLocation != FVector::ZeroVector)
+    {
+        MyCameraActor->SetActorLocation(OriginalCameraLocation);
+        OriginalCameraLocation = FVector::ZeroVector;
+    }
 }
 
 // ==========================================================
@@ -374,12 +387,19 @@ void AHAND::MoveUp(float Value)
         WheelRotationCount = 0;
     }
 
-    if (Value != 0.0f)
+    if (Value != 0.0f && !bIsReadyToDisappear)
     {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
+
         CubeTargetDistance += Value * 150.0f;
+
+        // „Åì„Åì„ÅßÁõ¥Êé•„ÄÅÈôêÁïå„ÅÆÊï∞Â≠ó„ÇíÊåáÂÆö„Åô„ÇãÔºàÊúÄÂ∞è10.0 „Äú ÊúÄÂ§ß3000.0Ôºâ
+        CubeTargetDistance = FMath::Clamp(CubeTargetDistance, 10.0f, 300000.0f);
 
         if (bIsGrabbing)
         {
+            if (GEngine) GEngine->AddOnScreenDebugMessage(11, 0.5f, FColor::Green, TEXT("Status: Grabbing & Suctioning!"));
+
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
 
             USoundBase* EatSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/eat.eat")));
@@ -388,11 +408,17 @@ void AHAND::MoveUp(float Value)
                 UGameplayStatics::PlaySound2D(this, EatSound);
             }
 
-            WheelRotationCount++;
-            if (WheelRotationCount >= 40)
+            if (EatSound)
             {
-                // Ç±Ç±Ç≈ÇÃReleaseÇÕàÍíUécÇµÇƒÇ®Ç´Ç‹Ç∑Ç™ÅATickë§Ç≈é©ìÆè¡ñ≈Ç∑ÇÈÇΩÇﬂÇ†Ç‹ÇËåƒÇŒÇÍÇ»Ç≠Ç»ÇËÇ‹Ç∑
-                Release();
+                if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Yellow, TEXT("Sound File: FOUND & Playing!"));
+                UGameplayStatics::PlaySound2D(this, EatSound);
+            }
+
+            WheelRotationCount++;
+
+            if (WheelRotationCount >= 25)
+            {
+                bIsReadyToDisappear = true;
                 WheelRotationCount = 0;
             }
         }
