@@ -55,7 +55,11 @@ public:
     UPROPERTY(EditAnywhere, Category = "Hand Settings|Curry")
     float FadeSpeed = 0.5f;
 
+<<<<<<< Updated upstream
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Game Rules")
+=======
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
+>>>>>>> Stashed changes
     float GameTimeLimit = 30.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
