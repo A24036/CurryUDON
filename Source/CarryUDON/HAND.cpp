@@ -13,8 +13,11 @@
 #include "Sound/SoundBase.h"
 #include "sukoa.h"
 
-// ★ 追加：ケーブルコンポーネント用のインクルード
+// ケーブルコンポーネント用のインクルード
 #include "CableComponent.h"
+
+// オーディオコンポーネント用のインクルード
+#include "Components/AudioComponent.h"
 
 // ==========================================================
 // コンストラクタ
@@ -42,6 +45,10 @@ AHAND::AHAND()
     PostProcessComponent->SetupAttachment(RootComponent);
     PostProcessComponent->bUnbound = true;
 
+    // BGM用コンポーネントの初期化（ここではコンポーネントを作るだけにする）
+    BGMAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("BGMAudioComponent"));
+    BGMAudioComponent->SetupAttachment(RootComponent);
+
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> CurryMatAsset(TEXT("Material'/Game/seisaku/curry.curry'"));
     if (CurryMatAsset.Succeeded()) { CurryScreenMaterial = CurryMatAsset.Object; }
 }
@@ -52,6 +59,26 @@ AHAND::AHAND()
 void AHAND::BeginPlay()
 {
     Super::BeginPlay();
+
+    // 【改良】ゲーム開始時に直接ファイルを読み込んで再生する方式に変更（Live Coding対応）
+    if (BGMAudioComponent)
+    {
+        USoundBase* NewBGM = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/onsen-ryokan-24.onsen-ryokan-24")));
+
+        if (NewBGM)
+        {
+            BGMAudioComponent->SetSound(NewBGM);
+            BGMAudioComponent->Play();
+        }
+        else
+        {
+            // もしファイルの場所（パス）が間違っていたら、画面に左上に5秒間 赤い文字で警告を出します
+            if (GEngine)
+            {
+                GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("【エラー】BGMファイル(bgm)が見つかりません！パスを確認してください。"));
+            }
+        }
+    }
 
     UStaticMesh* NewHandMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Game/seisaku/Model/hand1.hand1")));
     if (NewHandMesh && HandMesh)
@@ -207,14 +234,8 @@ void AHAND::Tick(float DeltaTime)
                         if (Distance > 1.0f)
                         {
                             StretchingNoodleComp->SetVisibility(true);
-
-                            // 始点（どんぶり側）をセット
                             NoodleActor->SetActorLocation(TailLoc);
-
-                            // 終点（口・マウス側）への相対位置をセット
                             StretchingNoodleComp->EndLocation = VectorToTarget;
-
-                            // 麺の長さを距離に合わせて伸ばす
                             StretchingNoodleComp->CableLength = Distance;
                         }
                         else
@@ -274,7 +295,6 @@ void AHAND::Grab()
             FActorSpawnParameters SpawnParams;
             SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-            // ケーブルをぶら下げるための「空のアクター」を生成
             NoodleActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), SpawnLocation, HitActor->GetActorRotation(), SpawnParams);
 
             if (NoodleActor)
@@ -283,19 +303,14 @@ void AHAND::Grab()
                 NoodleActor->SetRootComponent(RootComp);
                 RootComp->RegisterComponent();
 
-                // ケーブルコンポーネントをアクターに追加
                 UCableComponent* CableComp = NewObject<UCableComponent>(NoodleActor);
                 CableComp->SetupAttachment(RootComp);
 
-                // ====================================================
-                // ★修正：RegisterComponent（計算開始）の【前】に設定を書く！
-                // ====================================================
-                CableComp->CableWidth = 10.0f; // 麺の太さ
-                CableComp->NumSegments = 30;   // 分割数を増やす（ここがクラッシュの原因でした）
-                CableComp->CableLength = 0.0f; // 初期は長さ0
-                CableComp->EndLocation = FVector::ZeroVector; // 終点初期化
+                CableComp->CableWidth = 10.0f;
+                CableComp->NumSegments = 30;
+                CableComp->CableLength = 0.0f;
+                CableComp->EndLocation = FVector::ZeroVector;
 
-                // スポナー（クリックした対象）からマテリアルを引き継ぐ
                 UMeshComponent* ParentComp = Cast<UMeshComponent>(HitActor->GetComponentByClass(UMeshComponent::StaticClass()));
                 if (ParentComp)
                 {
@@ -303,14 +318,11 @@ void AHAND::Grab()
                     for (int32 i = 0; i < MatCount; i++) { CableComp->SetMaterial(i, ParentComp->GetMaterial(i)); }
                 }
 
-                // ★すべての設定が終わってから、コンポーネントを登録（有効化）する！
                 CableComp->RegisterComponent();
 
                 bIsGrabbing = true;
                 StretchingNoodleComp = CableComp;
                 NoodleSpawnBaseLocation = SpawnLocation;
-
-                if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("!!! つかめた !!! (麺:CableComponent)"));
 
                 bIsReadyToDisappear = false;
                 DisappearTimer = 0.0f;
@@ -345,8 +357,6 @@ void AHAND::Grab()
             bIsGrabbing = true;
             PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
-
-            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Blue, TEXT("!!! つかめた !!! (物理オブジェクト)"));
         }
     }
 }
@@ -392,22 +402,25 @@ void AHAND::MoveUp(float Value)
 
     if (Value != 0.0f && !bIsReadyToDisappear)
     {
-        if (GEngine) GEngine->AddOnScreenDebugMessage(10, 0.5f, FColor::Cyan, TEXT("--- Wheel Input Detected! ---"));
-
         CubeTargetDistance += Value * 150.0f;
         CubeTargetDistance = FMath::Clamp(CubeTargetDistance, 10.0f, 300000.0f);
 
         if (bIsGrabbing)
         {
-            if (GEngine) GEngine->AddOnScreenDebugMessage(11, 0.5f, FColor::Green, TEXT("Status: Grabbing & Suctioning!"));
-
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
 
-            USoundBase* EatSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/eat.eat")));
-            if (EatSound)
+            // 音の間隔のチェック
+            float CurrentTime = GetWorld()->GetTimeSeconds();
+
+            if (CurrentTime >= LastEatSoundTime + EatSoundCooldown)
             {
-                UGameplayStatics::PlaySound2D(this, EatSound);
-                if (GEngine) GEngine->AddOnScreenDebugMessage(12, 0.5f, FColor::Yellow, TEXT("Sound File: FOUND & Playing!"));
+                USoundBase* EatSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/eat.eat")));
+
+                if (EatSound)
+                {
+                    UGameplayStatics::PlaySound2D(this, EatSound);
+                    LastEatSoundTime = CurrentTime; // 鳴らした時間を更新
+                }
             }
 
             WheelRotationCount++;
