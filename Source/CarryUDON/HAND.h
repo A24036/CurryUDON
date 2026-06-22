@@ -34,7 +34,6 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UPostProcessComponent* PostProcessComponent;
 
-    // BGMを鳴らすためのオーディオコンポーネント
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UAudioComponent* BGMAudioComponent;
 
@@ -62,7 +61,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Rules")
     float GameTimeLimit = 30.0f;
 
-    // 音が鳴る間隔（秒）の設定
     UPROPERTY(EditAnywhere, Category = "Hand Settings|Sound")
     float EatSoundCooldown = 0.3f;
 
@@ -81,20 +79,16 @@ private:
     float LastCubeDistance = 500.0f;
     float CurrentCurryAlpha = 0.0f;
 
-    // ★追加：手を上に上げるための高さオフセット
     float CurrentHandZOffset = 0.0f;
-
-    // 最後に音が鳴った時間を記録する変数
     float LastEatSoundTime = 0.0f;
 
     UPROPERTY()
     UMaterialInstanceDynamic* DynamicCurryMaterial;
 
-    // ケーブルコンポーネントを使うための宣言
+    // ★変更：1本から「配列（複数本）」に変更
     UPROPERTY()
-    class UCableComponent* StretchingNoodleComp = nullptr;
+    TArray<class UCableComponent*> StretchingNoodleComps;
 
-    // ケーブルの土台となる透明なアクター
     UPROPERTY()
     AActor* NoodleActor = nullptr;
 

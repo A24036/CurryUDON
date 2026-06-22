@@ -44,7 +44,6 @@ AHAND::AHAND()
     PostProcessComponent->SetupAttachment(RootComponent);
     PostProcessComponent->bUnbound = true;
 
-    // BGM用コンポーネントの初期化（ここではコンポーネントを作るだけにする）
     BGMAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("BGMAudioComponent"));
     BGMAudioComponent->SetupAttachment(RootComponent);
 
@@ -59,22 +58,13 @@ void AHAND::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 【改良】ゲーム開始時に直接ファイルを読み込んで再生する方式に変更（Live Coding対応）
     if (BGMAudioComponent)
     {
         USoundBase* NewBGM = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/onsen-ryokan-24.onsen-ryokan-24")));
-
         if (NewBGM)
         {
             BGMAudioComponent->SetSound(NewBGM);
             BGMAudioComponent->Play();
-        }
-        else
-        {
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("【エラー】BGMファイル(bgm)が見つかりません！パスを確認してください。"));
-            }
         }
     }
 
@@ -139,7 +129,6 @@ void AHAND::Tick(float DeltaTime)
             bIsGameOver = true;
             Release();
 
-            // Usukoaクラスの参照を削除（エラー防止のためコメントアウトまたは不要なら削除可能ですが、ここでは安全のため直接OpenLevelのみ実行します）
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
     }
@@ -148,6 +137,15 @@ void AHAND::Tick(float DeltaTime)
     {
         GEngine->AddOnScreenDebugMessage(2, 0.0f, FColor::White, FString::Printf(TEXT("TIME: %.1f"), CurrentTimeRemaining));
         GEngine->AddOnScreenDebugMessage(1, 0.0f, FColor::Yellow, FString::Printf(TEXT("SCORE: %d"), CurrentScore));
+
+        if (bIsGrabbing)
+        {
+            GEngine->AddOnScreenDebugMessage(3, 0.0f, FColor::Green, TEXT("【状態】 🟢 麺をつかんでいます！"));
+        }
+        else
+        {
+            GEngine->AddOnScreenDebugMessage(3, 0.0f, FColor::Red, TEXT("【状態】 ❌ つかんでいません"));
+        }
     }
 
     APlayerController* PC = Cast<APlayerController>(GetController());
@@ -158,19 +156,15 @@ void AHAND::Tick(float DeltaTime)
         {
             HandFixedDistance = 500.0f;
 
-            // ★追加：手の高さ（Z軸）オフセットの制御
             if (!bIsGrabbing)
             {
-                // 離している時は素早く元の高さに戻る
                 CurrentHandZOffset = FMath::FInterpTo(CurrentHandZOffset, 0.0f, DeltaTime, 8.0f);
             }
             else
             {
-                // 掴んでいる間も重力のように少しずつ元の位置に戻ろうとする（連続スクロールで必死に引き上げる感が出ます）
                 CurrentHandZOffset = FMath::FInterpTo(CurrentHandZOffset, 0.0f, DeltaTime, 3.0f);
             }
 
-            // ベースのターゲット位置に、上に上がるオフセット(Z軸)を足す
             FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance) + FVector(0.0f, 0.0f, CurrentHandZOffset);
             FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
 
@@ -187,7 +181,7 @@ void AHAND::Tick(float DeltaTime)
                 }
                 LastCubeDistance = CubeTargetDistance;
 
-                if (StretchingNoodleComp && NoodleActor)
+                if (StretchingNoodleComps.Num() > 0 && NoodleActor)
                 {
                     FVector TargetLoc = CubeTargetLoc;
                     FVector TailLoc = NoodleSpawnBaseLocation;
@@ -237,21 +231,29 @@ void AHAND::Tick(float DeltaTime)
                         }
                     }
 
-                    if (StretchingNoodleComp && NoodleActor)
+                    if (StretchingNoodleComps.Num() > 0 && NoodleActor)
                     {
                         FVector VectorToTarget = TargetLoc - TailLoc;
                         float Distance = VectorToTarget.Size();
 
-                        if (Distance > 1.0f)
+                        NoodleActor->SetActorLocation(TailLoc);
+
+                        // ★変更：3本の麺それぞれに対して長さを更新
+                        for (UCableComponent* Cable : StretchingNoodleComps)
                         {
-                            StretchingNoodleComp->SetVisibility(true);
-                            NoodleActor->SetActorLocation(TailLoc);
-                            StretchingNoodleComp->EndLocation = VectorToTarget;
-                            StretchingNoodleComp->CableLength = Distance;
-                        }
-                        else
-                        {
-                            StretchingNoodleComp->SetVisibility(false);
+                            if (Cable)
+                            {
+                                if (Distance > 1.0f)
+                                {
+                                    Cable->SetVisibility(true);
+                                    Cable->EndLocation = VectorToTarget;
+                                    Cable->CableLength = Distance;
+                                }
+                                else
+                                {
+                                    Cable->SetVisibility(false);
+                                }
+                            }
                         }
                     }
                 }
@@ -296,7 +298,9 @@ void AHAND::Grab()
     FCollisionQueryParams Params;
     Params.AddIgnoredActor(this);
 
-    if (GetWorld()->SweepSingleByChannel(Hit, GrabCheckLocation, GrabCheckLocation + FVector(0, 0, 1), FQuat::Identity, ECC_Visibility, FCollisionShape::MakeBox(BoxSize), Params))
+    bool bHit = GetWorld()->SweepSingleByChannel(Hit, GrabCheckLocation, GrabCheckLocation + FVector(0, 0, 1), FQuat::Identity, ECC_Visibility, FCollisionShape::MakeBox(BoxSize), Params);
+
+    if (bHit)
     {
         AActor* HitActor = Hit.GetActor();
 
@@ -314,25 +318,42 @@ void AHAND::Grab()
                 NoodleActor->SetRootComponent(RootComp);
                 RootComp->RegisterComponent();
 
-                UCableComponent* CableComp = NewObject<UCableComponent>(NoodleActor);
-                CableComp->SetupAttachment(RootComp);
+                StretchingNoodleComps.Empty();
 
-                CableComp->CableWidth = 10.0f;
-                CableComp->NumSegments = 30;
-                CableComp->CableLength = 0.0f;
-                CableComp->EndLocation = FVector::ZeroVector;
-
-                UMeshComponent* ParentComp = Cast<UMeshComponent>(HitActor->GetComponentByClass(UMeshComponent::StaticClass()));
-                if (ParentComp)
+                // ★変更：ここでケーブル（麺）を3本生成して、少しずつ位置をずらす
+                for (int32 i = 0; i < 3; i++)
                 {
-                    int32 MatCount = ParentComp->GetNumMaterials();
-                    for (int32 i = 0; i < MatCount; i++) { CableComp->SetMaterial(i, ParentComp->GetMaterial(i)); }
+                    UCableComponent* CableComp = NewObject<UCableComponent>(NoodleActor);
+                    CableComp->SetupAttachment(RootComp);
+
+                    // 3本が重ならないように根元の位置を少しずらす
+                    FVector Offset(0.0f, 0.0f, 0.0f);
+                    if (i == 0) Offset = FVector(8.0f, 0.0f, 0.0f);
+                    if (i == 1) Offset = FVector(-4.0f, 7.0f, 0.0f);
+                    if (i == 2) Offset = FVector(-4.0f, -7.0f, 0.0f);
+                    CableComp->SetRelativeLocation(Offset);
+
+                    // 3本まとまるので、1本あたりの太さを少し細めに設定
+                    CableComp->CableWidth = 8.0f;
+                    CableComp->NumSegments = 30;
+                    CableComp->CableLength = 0.0f;
+                    CableComp->EndLocation = FVector::ZeroVector;
+
+                    UMeshComponent* ParentComp = Cast<UMeshComponent>(HitActor->GetComponentByClass(UMeshComponent::StaticClass()));
+                    if (ParentComp)
+                    {
+                        int32 MatCount = ParentComp->GetNumMaterials();
+                        for (int32 matIdx = 0; matIdx < MatCount; matIdx++)
+                        {
+                            CableComp->SetMaterial(matIdx, ParentComp->GetMaterial(matIdx));
+                        }
+                    }
+
+                    CableComp->RegisterComponent();
+                    StretchingNoodleComps.Add(CableComp);
                 }
 
-                CableComp->RegisterComponent();
-
                 bIsGrabbing = true;
-                StretchingNoodleComp = CableComp;
                 NoodleSpawnBaseLocation = SpawnLocation;
 
                 bIsReadyToDisappear = false;
@@ -354,6 +375,8 @@ void AHAND::Grab()
                 CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
                 CurrentVisualPull = CubeTargetDistance;
                 LastCubeDistance = CubeTargetDistance;
+
+                if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, TEXT("🎯 デバッグ: 麺を3本つかみました！"));
             }
             return;
         }
@@ -368,7 +391,17 @@ void AHAND::Grab()
             bIsGrabbing = true;
             PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
+
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, TEXT("🎯 デバッグ: 物理オブジェクトをつかみました！"));
         }
+        else
+        {
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("⚠️ デバッグ: タグがないためつかめません（空振り）"));
+        }
+    }
+    else
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("💨 デバッグ: 当たり判定内に何もありません（空振り）"));
     }
 }
 
@@ -377,13 +410,19 @@ void AHAND::Grab()
 // ==========================================================
 void AHAND::Release()
 {
+    if (bIsGrabbing)
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("🖐️ デバッグ: 手を離しました"));
+    }
+
     bIsGrabbing = false;
 
     if (NoodleActor)
     {
         NoodleActor->Destroy();
         NoodleActor = nullptr;
-        StretchingNoodleComp = nullptr;
+        // ★変更：複数本の麺の情報をリセット
+        StretchingNoodleComps.Empty();
     }
 
     if (PhysicsHandle->GrabbedComponent)
@@ -420,13 +459,9 @@ void AHAND::MoveUp(float Value)
         {
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
 
-            // ★追加：スクロールするたびに手を上に跳ね上げる
-            // 80.0f は上がる量です。もっと大げさに動かしたい場合は数値を大きくしてください
             CurrentHandZOffset += FMath::Abs(Value) * 80.0f;
-            // 画面外に消えないように制限（最大600）
             CurrentHandZOffset = FMath::Clamp(CurrentHandZOffset, 0.0f, 600.0f);
 
-            // 音の間隔のチェック
             float CurrentTime = GetWorld()->GetTimeSeconds();
 
             if (CurrentTime >= LastEatSoundTime + EatSoundCooldown)
@@ -436,7 +471,7 @@ void AHAND::MoveUp(float Value)
                 if (EatSound)
                 {
                     UGameplayStatics::PlaySound2D(this, EatSound);
-                    LastEatSoundTime = CurrentTime; // 鳴らした時間を更新
+                    LastEatSoundTime = CurrentTime;
                 }
             }
 
