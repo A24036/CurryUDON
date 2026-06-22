@@ -11,7 +11,6 @@
 #include "Materials/MaterialInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
-#include "sukoa.h"
 
 // ケーブルコンポーネント用のインクルード
 #include "CableComponent.h"
@@ -72,7 +71,6 @@ void AHAND::BeginPlay()
         }
         else
         {
-            // もしファイルの場所（パス）が間違っていたら、画面に左上に5秒間 赤い文字で警告を出します
             if (GEngine)
             {
                 GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("【エラー】BGMファイル(bgm)が見つかりません！パスを確認してください。"));
@@ -141,8 +139,7 @@ void AHAND::Tick(float DeltaTime)
             bIsGameOver = true;
             Release();
 
-            Usukoa* GI = Cast<Usukoa>(GetGameInstance());
-            if (GI) { GI->score = CurrentScore; }
+            // Usukoaクラスの参照を削除（エラー防止のためコメントアウトまたは不要なら削除可能ですが、ここでは安全のため直接OpenLevelのみ実行します）
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
     }
@@ -160,7 +157,21 @@ void AHAND::Tick(float DeltaTime)
         if (PC->DeprojectMousePositionToWorld(MouseWorldLoc, MouseWorldDir))
         {
             HandFixedDistance = 500.0f;
-            FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance);
+
+            // ★追加：手の高さ（Z軸）オフセットの制御
+            if (!bIsGrabbing)
+            {
+                // 離している時は素早く元の高さに戻る
+                CurrentHandZOffset = FMath::FInterpTo(CurrentHandZOffset, 0.0f, DeltaTime, 8.0f);
+            }
+            else
+            {
+                // 掴んでいる間も重力のように少しずつ元の位置に戻ろうとする（連続スクロールで必死に引き上げる感が出ます）
+                CurrentHandZOffset = FMath::FInterpTo(CurrentHandZOffset, 0.0f, DeltaTime, 3.0f);
+            }
+
+            // ベースのターゲット位置に、上に上がるオフセット(Z軸)を足す
+            FVector HandTargetLoc = MouseWorldLoc + (MouseWorldDir * HandFixedDistance) + FVector(0.0f, 0.0f, CurrentHandZOffset);
             FVector CubeTargetLoc = MouseWorldLoc + (MouseWorldDir * CubeTargetDistance);
 
             if (bIsGrabbing)
@@ -408,6 +419,12 @@ void AHAND::MoveUp(float Value)
         if (bIsGrabbing)
         {
             CurrentScore += FMath::CeilToInt(FMath::Abs(Value) * 10.0f);
+
+            // ★追加：スクロールするたびに手を上に跳ね上げる
+            // 80.0f は上がる量です。もっと大げさに動かしたい場合は数値を大きくしてください
+            CurrentHandZOffset += FMath::Abs(Value) * 80.0f;
+            // 画面外に消えないように制限（最大600）
+            CurrentHandZOffset = FMath::Clamp(CurrentHandZOffset, 0.0f, 600.0f);
 
             // 音の間隔のチェック
             float CurrentTime = GetWorld()->GetTimeSeconds();
