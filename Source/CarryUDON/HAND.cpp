@@ -18,6 +18,10 @@
 // オーディオコンポーネント用のインクルード
 #include "Components/AudioComponent.h"
 
+// ★追加：ご自身のGameInstanceのヘッダーファイルを読み込む
+// （※ファイル名は実際のプロジェクトに合わせて変更してください）
+#include "sukoa.h"
+
 // ==========================================================
 // コンストラクタ
 // ==========================================================
@@ -128,6 +132,14 @@ void AHAND::Tick(float DeltaTime)
             CurrentTimeRemaining = 0.0f;
             bIsGameOver = true;
             Release();
+
+            // ★追加：レベル遷移の直前にGameInstanceを取得してスコアを渡す
+            // （※ UMyGameInstance と SavedScore は実際の名称に変更してください）
+            Usukoa* GameInst = Cast<Usukoa>(UGameplayStatics::GetGameInstance(this));
+            if (GameInst)
+            {
+                GameInst->score = CurrentScore;
+            }
 
             UGameplayStatics::OpenLevel(this, FName("NewMap"));
         }
