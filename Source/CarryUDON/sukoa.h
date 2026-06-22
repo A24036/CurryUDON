@@ -6,9 +6,6 @@
 #include "Engine/GameInstance.h"
 #include "sukoa.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class CARRYUDON_API Usukoa : public UGameInstance
 {
@@ -17,5 +14,4 @@ class CARRYUDON_API Usukoa : public UGameInstance
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Score", meta = (AllowPrivateAccess = "true"))
 	int32 score;
-
 };

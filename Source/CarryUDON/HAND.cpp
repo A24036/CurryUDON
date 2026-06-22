@@ -388,7 +388,8 @@ void AHAND::Grab()
                 CurrentVisualPull = CubeTargetDistance;
                 LastCubeDistance = CubeTargetDistance;
 
-                if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, TEXT("🎯 デバッグ: 麺を3本つかみました！"));
+                if (GEngine) GEngine->AddOnScreenDebugMessage
+                (-1, 3.0f, FColor::Cyan, TEXT("🎯 デバッグ: 麺を3本つかみました！"));
             }
             return;
         }
@@ -404,16 +405,19 @@ void AHAND::Grab()
             PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
 
-            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Orange, TEXT("🎯 デバッグ: 物理オブジェクトをつかみました！"));
+            if (GEngine) GEngine->AddOnScreenDebugMessage
+            (-1, 3.0f, FColor::Orange, TEXT("🎯 デバッグ: 物理オブジェクトをつかみました！"));
         }
         else
         {
-            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("⚠️ デバッグ: タグがないためつかめません（空振り）"));
+            if (GEngine) GEngine->AddOnScreenDebugMessage
+            (-1, 3.0f, FColor::Red, TEXT("⚠️ デバッグ: タグがないためつかめません（空振り）"));
         }
     }
     else
     {
-        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("💨 デバッグ: 当たり判定内に何もありません（空振り）"));
+        if (GEngine) GEngine->AddOnScreenDebugMessage
+        (-1, 3.0f, FColor::Red, TEXT("💨 デバッグ: 当たり判定内に何もありません（空振り）"));
     }
 }
 
@@ -424,7 +428,8 @@ void AHAND::Release()
 {
     if (bIsGrabbing)
     {
-        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("🖐️ デバッグ: 手を離しました"));
+        if (GEngine) GEngine->AddOnScreenDebugMessage
+        (-1, 3.0f, FColor::Yellow,TEXT("🖐️ デバッグ: 手を離しました"));
     }
 
     bIsGrabbing = false;
