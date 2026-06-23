@@ -145,21 +145,6 @@ void AHAND::Tick(float DeltaTime)
         }
     }
 
-    if (GEngine && !bIsGameOver)
-    {
-        GEngine->AddOnScreenDebugMessage(2, 0.0f, FColor::White, FString::Printf(TEXT("TIME: %.1f"), CurrentTimeRemaining));
-        GEngine->AddOnScreenDebugMessage(1, 0.0f, FColor::Yellow, FString::Printf(TEXT("SCORE: %d"), CurrentScore));
-
-        if (bIsGrabbing)
-        {
-            GEngine->AddOnScreenDebugMessage(3, 0.0f, FColor::Green, TEXT("【状態】 🟢 麺をつかんでいます！"));
-        }
-        else
-        {
-            GEngine->AddOnScreenDebugMessage(3, 0.0f, FColor::Red, TEXT("【状態】 ❌ つかんでいません"));
-        }
-    }
-
     APlayerController* PC = Cast<APlayerController>(GetController());
     if (PC)
     {
@@ -387,9 +372,6 @@ void AHAND::Grab()
                 CubeTargetDistance = FVector::Dist(NoodleSpawnBaseLocation, CamLoc);
                 CurrentVisualPull = CubeTargetDistance;
                 LastCubeDistance = CubeTargetDistance;
-
-                if (GEngine) GEngine->AddOnScreenDebugMessage
-                (-1, 3.0f, FColor::Cyan, TEXT("🎯 デバッグ: 麺を3本つかみました！"));
             }
             return;
         }
@@ -404,20 +386,7 @@ void AHAND::Grab()
             bIsGrabbing = true;
             PhysicsHandle->GrabbedComponent = HitComp;
             PhysicsHandle->GrabComponentAtLocationWithRotation(HitComp, NAME_None, HitComp->GetComponentLocation(), HitComp->GetComponentRotation());
-
-            if (GEngine) GEngine->AddOnScreenDebugMessage
-            (-1, 3.0f, FColor::Orange, TEXT("🎯 デバッグ: 物理オブジェクトをつかみました！"));
         }
-        else
-        {
-            if (GEngine) GEngine->AddOnScreenDebugMessage
-            (-1, 3.0f, FColor::Red, TEXT("⚠️ デバッグ: タグがないためつかめません（空振り）"));
-        }
-    }
-    else
-    {
-        if (GEngine) GEngine->AddOnScreenDebugMessage
-        (-1, 3.0f, FColor::Red, TEXT("💨 デバッグ: 当たり判定内に何もありません（空振り）"));
     }
 }
 
@@ -426,12 +395,6 @@ void AHAND::Grab()
 // ==========================================================
 void AHAND::Release()
 {
-    if (bIsGrabbing)
-    {
-        if (GEngine) GEngine->AddOnScreenDebugMessage
-        (-1, 3.0f, FColor::Yellow,TEXT("🖐️ デバッグ: 手を離しました"));
-    }
-
     bIsGrabbing = false;
 
     if (NoodleActor)
