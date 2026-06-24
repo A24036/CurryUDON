@@ -62,6 +62,7 @@ void AHAND::BeginPlay()
 {
     Super::BeginPlay();
 
+    /*
     if (BGMAudioComponent)
     {
         USoundBase* NewBGM = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, TEXT("/Game/seisaku/Sound/onsen-ryokan-24.onsen-ryokan-24")));
@@ -71,14 +72,15 @@ void AHAND::BeginPlay()
             BGMAudioComponent->Play();
         }
     }
+    */
 
     UStaticMesh* NewHandMesh = Cast<UStaticMesh>(StaticLoadObject(UStaticMesh::StaticClass(), nullptr, TEXT("/Game/seisaku/Model/hand1.hand1")));
     if (NewHandMesh && HandMesh)
     {
         HandMesh->SetStaticMesh(NewHandMesh);
-        HandMesh->SetRelativeScale3D(FVector(-2.0f, 2.0f, 2.0f));
+        HandMesh->SetRelativeScale3D(FVector(3.0f, 3.0f, 3.0f));
         HandMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, -30.0f));
-        HandMesh->SetRelativeLocation(FVector(90.0f, -140.0f, -120.0f));
+        HandMesh->SetRelativeLocation(FVector(90.0f, 200.0f, -120.0f));
     }
 
     APlayerController* PC = Cast<APlayerController>(GetController());
