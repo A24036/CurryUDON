@@ -70,6 +70,10 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
     bool bIsGameOver;
 
+    // ★追加：ブループリントから「スタート！」の合図を受け取るための変数
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Game Rules")
+    bool bIsGameStarted;
+
     void Grab();
     void Release();
     void MoveUp(float Value);

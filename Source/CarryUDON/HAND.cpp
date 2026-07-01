@@ -97,6 +97,9 @@ void AHAND::BeginPlay()
     CurrentTimeRemaining = GameTimeLimit;
     bIsGameOver = false;
 
+    // ★追加：最初はまだスタートしていない状態にする
+    bIsGameStarted = false;
+
     if (CurryScreenMaterial)
     {
         DynamicCurryMaterial = UMaterialInstanceDynamic::Create(CurryScreenMaterial, this);
@@ -126,7 +129,8 @@ void AHAND::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    if (!bIsGameOver)
+    // ★変更：ゲームオーバーじゃなくて、かつ「スタートしている時(bIsGameStarted)」だけ時間を減らす
+    if (!bIsGameOver && bIsGameStarted)
     {
         CurrentTimeRemaining -= DeltaTime;
         if (CurrentTimeRemaining <= 0.0f)
@@ -289,7 +293,8 @@ void AHAND::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 // ==========================================================
 void AHAND::Grab()
 {
-    if (bIsGameOver) return;
+    // ★変更：ゲームオーバーの時か、まだスタートしてない時は何もしない（ここで処理を止める）
+    if (bIsGameOver || !bIsGameStarted) return;
 
     FVector GrabCheckLocation = GetActorLocation();
     FVector BoxSize(100.0f, 100.0f, 100.0f);
@@ -424,7 +429,8 @@ void AHAND::Release()
 // ==========================================================
 void AHAND::MoveUp(float Value)
 {
-    if (bIsGameOver) return;
+    // ★変更：ゲームオーバーの時か、まだスタートしてない時は何もしない
+    if (bIsGameOver || !bIsGameStarted) return;
 
     static int32 WheelRotationCount = 0;
     if (!bIsGrabbing)
