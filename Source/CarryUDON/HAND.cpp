@@ -48,8 +48,9 @@ AHAND::AHAND()
     BGMAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("BGMAudioComponent"));
     BGMAudioComponent->SetupAttachment(RootComponent);
 
-    // ★ パッケージ化に必要な "Material'" を含めたパス
-    static ConstructorHelpers::FObjectFinder<UMaterialInterface> CurryMatAsset(TEXT("/Game/seisaku/curry.curry"));
+    // ★ 実体マテリアルの現在位置（Cook対象の Material フォルダ）を直接参照する。
+    //    旧パス /Game/seisaku/curry はリダイレクタのためパッケージで解決できず表示されなかった。
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> CurryMatAsset(TEXT("/Game/seisaku/Material/curry.curry"));
     if (CurryMatAsset.Succeeded()) { CurryScreenMaterial = CurryMatAsset.Object; }
 
     static ConstructorHelpers::FObjectFinder<USoundBase> EatAsset(TEXT("/Game/seisaku/Sound/eat.eat"));
@@ -143,7 +144,7 @@ void AHAND::Tick(float DeltaTime)
                 GameInst->score = CurrentScore;
             }
 
-            UGameplayStatics::OpenLevel(this, FName("NewMap"));
+            UGameplayStatics::OpenLevel(this, FName("GameOverMap"));
         }
     }
 
